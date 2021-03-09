@@ -1,5 +1,6 @@
 use clap::ArgMatches;
-use image::DynamicImage;
+
+use crate::processing::algorithm::Algorithm;
 
 pub enum Mode {
     ENCRYPTING,
@@ -7,20 +8,13 @@ pub enum Mode {
 }
 
 pub struct Configuration {
-    image: DynamicImage,
-    mode: Mode,
-    text_to_encrypt: String,
+    pub image_path: String,
+    pub mode: Mode,
+    pub text_to_encrypt: String,
+    pub algorithm: Algorithm,
 }
 
 pub fn parse_args(args: ArgMatches) -> Configuration {
-    let img: DynamicImage;
-
-    if let Some(tmp) = args.value_of("file") {
-        img = image::open(tmp).unwrap();
-    } else {
-        panic!("file name is not present")
-    }
-
     let mode: Mode;
     if let Some(tmp) = args.value_of("mode") {
         mode = match tmp {
@@ -35,11 +29,22 @@ pub fn parse_args(args: ArgMatches) -> Configuration {
     let mut text_to_encrypt: String = String::new();
     if let Some(tmp) = args.value_of("data") {
         text_to_encrypt = String::from(tmp);
+    } else {
+        println!("WARN: empty text provided")
+    }
+
+    let img: String;
+
+    if let Some(tmp) = args.value_of("file") {
+        img = String::from(tmp);
+    } else {
+        panic!("file name is not present")
     }
 
     return Configuration {
-        image: img,
+        image_path: img,
         mode: mode,
         text_to_encrypt: text_to_encrypt,
+        algorithm: Algorithm::LLBE,
     };
 }
