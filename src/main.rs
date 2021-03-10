@@ -1,11 +1,11 @@
 use clap::{App, Arg};
-use image::{ImageResult};
+use image::ImageResult;
 
 mod command;
 mod processing;
 
 use command::parser::{parse_args, Configuration, Mode};
-use processing::algorithm::{get_encoder, get_decoder, Algorithm};
+use processing::algorithm::{get_decoder, get_encoder, Algorithm};
 
 fn main() {
     let matches = App::new("Image Cipherus")
@@ -51,8 +51,8 @@ fn main() {
     let config = parse_args(matches);
 
     match config.mode {
-        Mode::ENCRYPTING => encode(config),
-        Mode::DECRYPTING => println!("{}", decode(config)),
+        Mode::ENCODING => encode(config),
+        Mode::DECODING => println!("{}", decode(config)),
     }
 }
 
@@ -63,11 +63,11 @@ fn encode(config: Configuration) {
 
     match res {
         Err(e) => eprintln!("Error while saving encoded image {}", e),
-        Ok(res) => println!("Encoded image saved successfully")
+        Ok(_) => println!("Encoded image saved successfully"),
     }
 }
 
 fn decode(config: Configuration) -> String {
-    let mut alg= get_decoder(config);
+    let mut alg = get_decoder(config);
     alg.decode()
 }

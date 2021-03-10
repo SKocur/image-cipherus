@@ -1,4 +1,4 @@
-use image::{ImageResult};
+use image::ImageResult;
 
 use crate::command::parser::Configuration;
 use crate::processing::algorithms;

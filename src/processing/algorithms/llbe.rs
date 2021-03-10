@@ -1,15 +1,15 @@
-use image::{DynamicImage, GenericImage, GenericImageView, ImageResult, Rgba, ImageBuffer};
 use image::buffer::EnumeratePixelsMut;
+use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageResult, Rgba};
 
 use crate::command::parser::Configuration;
 use crate::processing::algorithm::{Decoder, Encoder};
 
 pub struct LLBE {
     config: Configuration,
-    image: DynamicImage,
     imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>>,
     col: u32,
     row: u32,
+    temp_bit_val: u32,
 }
 
 /**
@@ -19,11 +19,11 @@ impl LLBE {
     pub fn new(config: Configuration) -> Self {
         let img = image::open(&config.image_path).unwrap();
         Self {
-            imgbuf: img.to_rgba(),
-            image: img,
+            imgbuf: img.to_rgba8(),
             config: config,
             col: 0,
             row: 0,
+            temp_bit_val: 0,
         }
     }
 
@@ -34,14 +34,14 @@ impl LLBE {
     }
 
     fn encode_bit_character(&mut self, diff: u8) {
-        if self.col < self.image.width() - 1 {
-            // let mut pixel: Rgba<u8> = self.image.get_pixel(self.col, self.row);
-            let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
-            let rgba = pixel.0;
-
-            let next_pixel = self.image.get_pixel(self.col + 1, self.row);
+        if self.col < self.imgbuf.width() - 1 {
+            let next_pixel = self.imgbuf.get_pixel(self.col + 1, self.row);
             let mut b = next_pixel.0[2];
             b -= diff;
+
+            let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
+            println!("{} -> {}", pixel.0[2], b);
+            let rgba = pixel.0;
 
             *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
 
@@ -52,20 +52,18 @@ impl LLBE {
         }
     }
 
-    fn decrypt_bit_character(&mut self) -> u32 {
-        if self.col < self.image.width() - 1 {
-            let b = self.image.get_pixel(self.col, self.row).0[2] as i32;
-            
-            let new_b = self.image.get_pixel(self.col + 1, self.row).0[2] as i32;
+    fn decode_bit_character(&mut self) {
+        if self.col < self.imgbuf.width() - 1 {
+            let b = self.imgbuf.get_pixel(self.col, self.row).0[2] as i32;
+
+            let new_b = self.imgbuf.get_pixel(self.col + 1, self.row).0[2] as i32;
 
             self.col += 2;
 
-            ((new_b - b) as u32)
+            self.temp_bit_val = (new_b - b) as u32;
         } else {
             self.row += 1;
             self.col = 0;
-
-            1
         }
     }
 }
@@ -93,24 +91,83 @@ impl Decoder for LLBE {
 
         let mut res = String::new();
 
-        while self.col < self.image.width() - 1 && self.row < self.image.height() {
+        while self.col < self.imgbuf.width() - 1 && self.row < self.imgbuf.height() {
             let mut c: u32 = 0;
 
             for _ in 0..8 {
+                self.decode_bit_character();
+
                 c <<= 1;
-                c |= self.decrypt_bit_character();
+                c |= self.temp_bit_val;
             }
 
-            let chr = std::char::from_u32((c << 24).reverse_bits() & 0b11111111);
+            let tmp_res = (c << 24).reverse_bits() & 0b11111111;
+
+            // Trial and error shows that this threshold is perfect for ignoring image noise
+            if tmp_res > 200 {
+                break;
+            }
+
+            let chr = std::char::from_u32(tmp_res);
 
             match chr {
                 Some(c) => {
-                    // print!("{}\t", c);
                     res.push_str(&c.to_string())
-                },
-                None => continue
+                }
+                None => continue,
             }
         }
         return res;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::command::parser::Mode;
+    use crate::processing::algorithm::Algorithm;
+
+    #[test]
+    fn test_decoding_single_letter() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(16, 1);
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 0, 255]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 0, 255]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 255]));
+
+        imgbuf.put_pixel(14, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(15, 0, Rgba([0, 0, 1, 255]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::DECODING,
+                image_path: String::from("tmp"),
+                text_to_encrypt: String::from(""),
+            },
+        };
+
+        assert_eq!(algo.decode(), "A");
     }
 }

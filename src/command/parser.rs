@@ -3,8 +3,8 @@ use clap::ArgMatches;
 use crate::processing::algorithm::Algorithm;
 
 pub enum Mode {
-    ENCRYPTING,
-    DECRYPTING,
+    ENCODING,
+    DECODING,
 }
 
 pub struct Configuration {
@@ -18,8 +18,8 @@ pub fn parse_args(args: ArgMatches) -> Configuration {
     let mode: Mode;
     if let Some(tmp) = args.value_of("mode") {
         mode = match tmp {
-            "enc" => Mode::ENCRYPTING,
-            "dec" => Mode::DECRYPTING,
+            "enc" => Mode::ENCODING,
+            "dec" => Mode::DECODING,
             _ => panic!("Wrong mode provided"),
         }
     } else {
@@ -29,8 +29,6 @@ pub fn parse_args(args: ArgMatches) -> Configuration {
     let mut text_to_encrypt: String = String::new();
     if let Some(tmp) = args.value_of("data") {
         text_to_encrypt = String::from(tmp);
-    } else {
-        println!("WARN: empty text provided")
     }
 
     let img: String;
