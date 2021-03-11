@@ -40,7 +40,6 @@ impl LLBE {
             b -= diff;
 
             let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
-            println!("{} -> {}", pixel.0[2], b);
             let rgba = pixel.0;
 
             *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
@@ -49,6 +48,17 @@ impl LLBE {
         } else {
             self.row += 1;
             self.col = 0;
+
+            let next_pixel = self.imgbuf.get_pixel(self.col + 1, self.row);
+            let mut b = next_pixel.0[2];
+            b -= diff;
+
+            let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
+            let rgba = pixel.0;
+
+            *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
+
+            self.col += 2;
         }
     }
 
@@ -61,9 +71,16 @@ impl LLBE {
             self.col += 2;
 
             self.temp_bit_val = (new_b - b) as u32;
-        } else {
+        } else if self.row < self.imgbuf.height() - 1 {
             self.row += 1;
             self.col = 0;
+
+            let b = self.imgbuf.get_pixel(self.col, self.row).0[2] as i32;
+
+            let new_b = self.imgbuf.get_pixel(self.col + 1, self.row).0[2] as i32;
+            self.col += 2;
+
+            self.temp_bit_val = (new_b - b) as u32;
         }
     }
 }
@@ -111,13 +128,11 @@ impl Decoder for LLBE {
             let chr = std::char::from_u32(tmp_res);
 
             match chr {
-                Some(c) => {
-                    res.push_str(&c.to_string())
-                }
+                Some(c) => res.push_str(&c.to_string()),
                 None => continue,
             }
         }
-        return res;
+        return res.trim_matches(char::from(0)).to_string();
     }
 }
 
@@ -129,31 +144,197 @@ mod tests {
     use crate::processing::algorithm::Algorithm;
 
     #[test]
-    fn test_decoding_single_letter() {
+    fn test_encoding_single_letter() {
         let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(16, 1);
-        imgbuf.put_pixel(0, 0, Rgba([0, 0, 0, 255]));
-        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(12, 0, Rgba([0, 0, 0, 255]));
-        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
 
-        imgbuf.put_pixel(14, 0, Rgba([0, 0, 1, 255]));
-        imgbuf.put_pixel(15, 0, Rgba([0, 0, 1, 255]));
+        imgbuf.put_pixel(14, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(15, 0, Rgba([0, 0, 1, 0xFF]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::ENCODING,
+                image_path: String::from(""),
+                text_to_encrypt: String::from("A"),
+            },
+        };
+
+        algo.encode();
+
+        assert_eq!(algo.imgbuf.get_pixel(0, 0).0[2], 0);
+        assert_eq!(algo.imgbuf.get_pixel(12, 0).0[2], 0);
+    }
+
+    #[test]
+    fn test_encoding_one_letter_in_two_lines() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(14, 2);
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 1, Rgba([0, 0, 1, 0xFF]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::ENCODING,
+                image_path: String::from(""),
+                text_to_encrypt: String::from("A"),
+            },
+        };
+
+        algo.encode();
+
+        assert_eq!(algo.imgbuf.get_pixel(0, 0).0[2], 0);
+        assert_eq!(algo.imgbuf.get_pixel(12, 0).0[2], 0);
+    }
+
+    #[test]
+    fn test_encoding_two_letters_wrapped_in_three_lines() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(14, 3);
+        //first A
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 1, Rgba([0, 0, 1, 0xFF]));
+
+        //second A
+        imgbuf.put_pixel(2, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(13, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 2, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 2, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 2, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 2, Rgba([0, 0, 1, 0xFF]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::ENCODING,
+                image_path: String::from(""),
+                text_to_encrypt: String::from("AA"),
+            },
+        };
+
+        algo.encode();
+
+        assert_eq!(algo.imgbuf.get_pixel(0, 0).0[2], 0);
+        assert_eq!(algo.imgbuf.get_pixel(12, 0).0[2], 0);
+        assert_eq!(algo.imgbuf.get_pixel(2, 1).0[2], 0);
+        assert_eq!(algo.imgbuf.get_pixel(0, 2).0[2], 0);
+    }
+
+    #[test]
+    fn test_decoding_one_line_single_letter() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(16, 1);
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(14, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(15, 0, Rgba([0, 0, 1, 0xFF]));
 
         let mut algo = LLBE {
             imgbuf: imgbuf,
@@ -169,5 +350,117 @@ mod tests {
         };
 
         assert_eq!(algo.decode(), "A");
+    }
+
+    #[test]
+    fn test_decoding_wrapped_two_lines_single_letter() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(14, 2);
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 1, Rgba([0, 0, 1, 0xFF]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::DECODING,
+                image_path: String::from("tmp"),
+                text_to_encrypt: String::from(""),
+            },
+        };
+
+        assert_eq!(algo.decode(), "A");
+    }
+
+    #[test]
+    fn test_decoding_wrapped_three_lines_two_letters() {
+        let mut imgbuf: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(14, 3);
+        //first A
+        imgbuf.put_pixel(0, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(1, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 0, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 0, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(13, 0, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(1, 1, Rgba([0, 0, 1, 0xFF]));
+
+        //second A
+        imgbuf.put_pixel(2, 1, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(3, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(4, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(5, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(6, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(7, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(8, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(9, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(10, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(11, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(12, 1, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(13, 1, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(0, 2, Rgba([0, 0, 0, 0xFF]));
+        imgbuf.put_pixel(1, 2, Rgba([0, 0, 1, 0xFF]));
+
+        imgbuf.put_pixel(2, 2, Rgba([0, 0, 1, 0xFF]));
+        imgbuf.put_pixel(3, 2, Rgba([0, 0, 1, 0xFF]));
+
+        let mut algo = LLBE {
+            imgbuf: imgbuf,
+            col: 0,
+            row: 0,
+            temp_bit_val: 0,
+            config: Configuration {
+                algorithm: Algorithm::LLBE,
+                mode: Mode::DECODING,
+                image_path: String::from("tmp"),
+                text_to_encrypt: String::from(""),
+            },
+        };
+
+        assert_eq!(algo.decode(), "AA");
     }
 }
