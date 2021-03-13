@@ -1,5 +1,4 @@
-use image::buffer::EnumeratePixelsMut;
-use image::{DynamicImage, GenericImage, GenericImageView, ImageBuffer, ImageResult, Rgba};
+use image::{ImageBuffer, ImageResult, Rgba};
 
 use crate::command::parser::Configuration;
 use crate::processing::algorithm::{Decoder, Encoder};
@@ -34,32 +33,21 @@ impl LLBE {
     }
 
     fn encode_bit_character(&mut self, diff: u8) {
-        if self.col < self.imgbuf.width() - 1 {
-            let next_pixel = self.imgbuf.get_pixel(self.col + 1, self.row);
-            let mut b = next_pixel.0[2];
-            b -= diff;
-
-            let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
-            let rgba = pixel.0;
-
-            *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
-
-            self.col += 2;
-        } else {
+        if self.col >= self.imgbuf.width() - 1 && self.row < self.imgbuf.height() - 1 {
             self.row += 1;
             self.col = 0;
-
-            let next_pixel = self.imgbuf.get_pixel(self.col + 1, self.row);
-            let mut b = next_pixel.0[2];
-            b -= diff;
-
-            let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
-            let rgba = pixel.0;
-
-            *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
-
-            self.col += 2;
         }
+
+        let next_pixel = self.imgbuf.get_pixel(self.col + 1, self.row);
+        let mut b = next_pixel.0[2];
+        b -= diff;
+
+        let pixel = self.imgbuf.get_pixel_mut(self.col, self.row);
+        let rgba = pixel.0;
+
+        *pixel = Rgba([rgba[0], rgba[1], b, rgba[3]]);
+
+        self.col += 2;
     }
 
     fn decode_bit_character(&mut self) {
@@ -71,13 +59,14 @@ impl LLBE {
             self.col += 2;
 
             self.temp_bit_val = (new_b - b) as u32;
-        } else if self.row < self.imgbuf.height() - 1 {
+        } else if self.col >= self.imgbuf.width() - 1 && self.row < self.imgbuf.height() - 1 {
             self.row += 1;
             self.col = 0;
 
             let b = self.imgbuf.get_pixel(self.col, self.row).0[2] as i32;
 
             let new_b = self.imgbuf.get_pixel(self.col + 1, self.row).0[2] as i32;
+            
             self.col += 2;
 
             self.temp_bit_val = (new_b - b) as u32;
