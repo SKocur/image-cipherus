@@ -63,7 +63,7 @@ fn encode(config: Configuration) {
 
     match res {
         Err(e) => eprintln!("Error while saving encoded image {}", e),
-        Ok(_) => println!("Encoded image saved successfully"),
+        Ok(_) => println!("\x1b[0;32mEncoded image saved successfully\x1b[0m"),
     }
 }
 
